@@ -2,12 +2,14 @@ import sys
 import os
 import json
 import pandas as pd
+from datetime import datetime
 from src.config import config
 from src.utils import load_data, transform_choices, save_transformed_data
 from src.agent.graph import app
 from src.client import RateLimitException
 
 LOG_FILE = "inference_log.jsonl"
+DETAIL_LOG_FILE = "inference_detail.log"
 EMERGENCY_CSV = "submission_emergency.csv"
 
 def load_processed_qids(log_path: str) -> set:
@@ -28,6 +30,12 @@ def append_to_log(log_path: str, record: dict):
     with open(log_path, 'a', encoding='utf-8') as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
+def append_detail_log(log_path: str, message: str):
+    """Append detailed log message to file."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(log_path, 'a', encoding='utf-8') as f:
+        f.write(f"[{timestamp}] {message}\n")
+
 def consolidate_log_to_csv(log_path: str, csv_path: str):
     """Read all log entries and create a submission CSV."""
     results = []
@@ -45,7 +53,6 @@ def consolidate_log_to_csv(log_path: str, csv_path: str):
     if results:
         df = pd.DataFrame(results)
         df.to_csv(csv_path, index=False)
-        print(f"[Checkpoint] Consolidated {len(results)} results to {csv_path}")
     return len(results)
 
 def main():
@@ -61,23 +68,23 @@ def main():
                 break
     
     if not os.path.exists(input_file):
-        print(f"[Main] Error: No input file found in {config.DATA_DIR}")
+        print(f"[ERROR] No input file found in {config.DATA_DIR}")
         return 1
     
     output_file = os.path.join(config.OUTPUT_DIR, "submission.csv")
     log_file = os.path.join(config.OUTPUT_DIR, LOG_FILE)
+    detail_log = os.path.join(config.OUTPUT_DIR, DETAIL_LOG_FILE)
     emergency_csv = os.path.join(config.OUTPUT_DIR, EMERGENCY_CSV)
     
     # Ensure output directory exists
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
     
-    print(f"[Main] Loading data from {input_file}...")
+    print(f"Loading data from {input_file}...")
     
     # Step 1: Load original data
     raw_data = load_data(input_file)
     
     # Step 2: Transform choices to "A. choice", "B. choice" format
-    print(f"[Main] Transforming {len(raw_data)} questions (mapping choices to A, B, C, D...)...")
     transformed_data = transform_choices(raw_data)
     
     # Step 3: Save transformed data
@@ -85,11 +92,25 @@ def main():
     
     # Load already processed questions for resume
     processed_qids = load_processed_qids(log_file)
-    print(f"[Main] Found {len(processed_qids)} already processed questions.")
     
     # Filter to only unprocessed questions
     remaining_data = [item for item in transformed_data if item.get('qid') not in processed_qids]
-    print(f"[Main] Processing {len(remaining_data)} remaining questions...")
+    
+    total = len(transformed_data)
+    done = len(processed_qids)
+    remaining = len(remaining_data)
+    
+    print(f"Total: {total} | Done: {done} | Remaining: {remaining}")
+    
+    if remaining == 0:
+        print("All questions already processed!")
+        consolidate_log_to_csv(log_file, output_file)
+        print(f"Submission saved to {output_file}")
+        return 0
+    
+    print(f"Processing {remaining} questions...")
+    append_detail_log(detail_log, f"=== Starting inference session ===")
+    append_detail_log(detail_log, f"Total: {total}, Done: {done}, Remaining: {remaining}")
     
     rate_limit_hit = False
     
@@ -123,50 +144,47 @@ def main():
             # Save immediately to log
             append_to_log(log_file, record)
             
-            print(f"[{idx+1}/{len(remaining_data)}] Processed {qid}: {final_state['answer']} ({final_state.get('category', '')})")
+            # Detailed log to file
+            append_detail_log(detail_log, f"{qid}: {final_state['answer']} ({final_state.get('category', '')})")
+            
+            # Simple console output
+            current = done + idx + 1
+            print(f"[{current}/{total}] {qid} -> {final_state['answer']}")
             
         except RateLimitException as e:
-            # ============================================
-            # RATE LIMIT HANDLING - Graceful Shutdown
-            # ============================================
-            print(f"\n{'='*60}")
-            print(f"[RATE LIMIT] API quota exceeded at question {qid}")
-            print(f"[RATE LIMIT] Error: {e}")
-            print(f"{'='*60}")
+            # RATE LIMIT HANDLING
+            print(f"\n{'='*50}")
+            print(f"[RATE LIMIT] Quota exceeded at {qid}")
+            print(f"{'='*50}")
             
+            append_detail_log(detail_log, f"RATE LIMIT at {qid}: {e}")
             rate_limit_hit = True
             break
             
         except Exception as e:
-            print(f"[Main] Error processing {qid}: {e}")
+            append_detail_log(detail_log, f"ERROR at {qid}: {e}")
             # Log with fallback answer
             record = {
                 "qid": qid,
-                "answer": "C",  # Fallback
+                "answer": "C",
                 "category": "error",
                 "reasoning": str(e)[:200]
             }
             append_to_log(log_file, record)
+            current = done + idx + 1
+            print(f"[{current}/{total}] {qid} -> C (error)")
     
-    # ============================================
     # CONSOLIDATE RESULTS
-    # ============================================
     if rate_limit_hit:
-        print(f"\n[EMERGENCY] Rate limit detected. Creating emergency submission...")
         count = consolidate_log_to_csv(log_file, emergency_csv)
-        print(f"[EMERGENCY] Saved {count} answers to {emergency_csv}")
-        print(f"\n{'='*60}")
-        print(f"[HOW TO RESUME]")
-        print(f"1. Wait for API quota to reset (or switch tokens in .env)")
-        print(f"2. Run: python predict.py")
-        print(f"3. System will auto-detect {log_file}")
-        print(f"   and continue from question {qid}")
-        print(f"{'='*60}\n")
+        print(f"\nEmergency save: {count} answers -> {emergency_csv}")
+        print(f"\n[HOW TO RESUME]")
+        print(f"1. Wait for API quota reset")
+        print(f"2. Run: uv run python predict.py")
         return 1
     else:
-        print(f"\n[SUCCESS] All {len(transformed_data)} questions processed!")
-        consolidate_log_to_csv(log_file, output_file)
-        print(f"[SUCCESS] Final submission saved to {output_file}")
+        count = consolidate_log_to_csv(log_file, output_file)
+        print(f"\nDone! {count} answers -> {output_file}")
         return 0
 
 if __name__ == "__main__":
