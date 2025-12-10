@@ -1,4 +1,5 @@
 from ...state import AgentState
+from ....logger import log
 import re
 
 TOXIC_KEYWORDS = [
@@ -14,28 +15,23 @@ TOXIC_KEYWORDS = [
 ]
 
 def toxic_checker_node(state: AgentState) -> AgentState:
-    """
-    Toxic checker node:
-    - Since toxic is classified by LLM detecting refusal patterns in answers,
-      we find and return the refusal answer directly.
-    """
+    """Toxic checker: find refusal answer directly."""
     choices = state["choices"]
     
-    # Find the answer that contains the refusal
+    log(f"[Toxic] Checking for refusal pattern...")
+    
     for choice in choices:
         choice_lower = choice.lower()
         for keyword in TOXIC_KEYWORDS:
             if keyword in choice_lower:
-                # Extract the letter from the choice (e.g., "B. Tôi không thể..." -> "B")
                 match = re.match(r'^([A-J])\.\s*', choice)
                 if match:
                     state["answer"] = match.group(1)
-                    state["reasoning"] = f"Toxic question detected. Answer is the refusal: {choice[:50]}..."
-                    print(f"[Toxic] Answer: {state['answer']} ({choice[:30]}...)")
+                    state["reasoning"] = f"Toxic: {choice[:50]}..."
+                    log(f"[Toxic] Answer: {state['answer']}")
                     return state
     
-    # Fallback if somehow no refusal found
-    # Try to find first choice that looks like a refusal
+    # Fallback
     for choice in choices:
         match = re.match(r'^([A-J])\.\s*', choice)
         if match:
@@ -45,5 +41,5 @@ def toxic_checker_node(state: AgentState) -> AgentState:
         state["answer"] = "A"
     
     state["reasoning"] = "Toxic category but no clear refusal found."
-    print(f"[Toxic] Fallback answer: {state['answer']}")
+    log(f"[Toxic] Fallback answer: {state['answer']}")
     return state
