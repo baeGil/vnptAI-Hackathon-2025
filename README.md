@@ -6,16 +6,14 @@ Pipeline giải bài trắc nghiệm sử dụng LangGraph với Router-based ar
 
 ```
 project/
-├── data/                   # Dữ liệu đầu vào
+├── data/                  # Dữ liệu đầu vào
 │   ├── val.json           # File validation
 │   └── private_test.json  # File test chính thức
-├── output/                 # Kết quả đầu ra
-│   ├── submission.csv     # File nộp bài
-│   └── inference_log.jsonl # Log checkpointing
+├── output/                # Kết quả đầu ra
 ├── src/
 │   ├── agent/
 │   │   ├── modules/       # Các solver modules
-│   │   │   ├── math/      # Giải toán bằng code
+│   │   │   ├── math/      # Giải toán
 │   │   │   ├── rag/       # Tra cứu kiến thức
 │   │   │   ├── reading/   # Đọc hiểu văn bản
 │   │   │   └── toxic/     # Phát hiện câu hỏi toxic
@@ -26,8 +24,8 @@ project/
 │   ├── config.py          # Configuration
 │   └── utils.py           # Utilities
 ├── predict.py             # Entry point
-├── .env                   # API credentials (KHÔNG COMMIT!)
-├── pyproject.toml         # Dependencies
+├── .env
+├── pyproject.toml         # uv package manager
 └── Dockerfile             # Docker build
 ```
 
@@ -36,13 +34,14 @@ project/
 ### 1. Clone và cài đặt dependencies
 
 ```bash
+# clone project 
+git clone https://github.com/baeGil/vnptAI-Hackathon-2025.git
+
+# vào thư mục project
 cd project
 
-# Sử dụng uv (recommended)
-uv pip install -r pyproject.toml
-
-# Hoặc pip
-pip install -r pyproject.toml
+# Cài đặt dependencies
+uv sync
 ```
 
 ### 2. Cấu hình API Keys
@@ -78,8 +77,7 @@ OUTPUT_DIR=./output
 ### Chạy Local
 
 ```bash
-cd project
-python predict.py
+uv run python predict.py
 ```
 
 ### Chạy với Docker
