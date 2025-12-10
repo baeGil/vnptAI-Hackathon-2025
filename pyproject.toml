@@ -1,0 +1,27 @@
+[project]
+name = "vnpt-ai-hackathon"
+version = "0.1.0"
+description = "VNPT AI Hackathon Track 2 Solution"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+    "pandas",
+    "python-dotenv",
+    "langgraph",
+    "langchain",
+    "langchain-core",
+    "langchain-community",
+    "langchain-experimental",
+    # "faiss-cpu",
+    # "chromadb",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+]
