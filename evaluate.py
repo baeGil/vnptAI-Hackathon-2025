@@ -74,7 +74,7 @@ def evaluate(gt_path: str, pred_path: str):
     print(f"{GREEN}Correct: {correct}{RESET}")
     print(f"{RED}Wrong: {wrong}{RESET}")
     print(f"Accuracy: {accuracy:.2f}%")
-    print(f"{'='*50}\n")
+    print(f"{'='*50}\n") 
 
 # Thực hiện đánh giá:
 gt_path = "./data/val.json"
