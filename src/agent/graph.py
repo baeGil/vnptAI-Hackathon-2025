@@ -6,6 +6,20 @@ from .modules.rag import rag_solver_node
 from .modules.reading import reading_solver_node
 from .modules.toxic import toxic_checker_node
 
+def route_after_router(state: AgentState) -> str:
+    """
+    Route based on category and whether answer is already set.
+    If toxic with answer already set by router, go to END directly.
+    """
+    category = state.get("category", "rag")
+    answer = state.get("answer", "")
+    
+    # If toxic and answer already set by router, skip toxic module
+    if category == "toxic" and answer:
+        return "end"
+    
+    return category
+
 def build_graph():
     workflow = StateGraph(AgentState)
     
@@ -22,12 +36,13 @@ def build_graph():
     # Conditional routing based on category
     workflow.add_conditional_edges(
         "router",
-        lambda state: state["category"],
+        route_after_router,
         {
             "math": "math_solver",
             "rag": "rag_solver",
             "reading": "reading_solver",
-            "toxic": "toxic_checker"
+            "toxic": "toxic_checker",
+            "end": END  # Skip to end if toxic answer already set
         }
     )
     
