@@ -58,14 +58,14 @@ def search_multi_query(queries: List[str], k: int = TOP_K_PER_QUERY) -> List[Tup
                 continue
             
             # Search
-            results = qdrant.search(
+            results = qdrant.query_points(
                 collection_name=COLLECTION_NAME,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=k,
                 with_payload=True,
                 with_vectors=False,
                 score_threshold=MIN_SCORE_THRESHOLD
-            )
+            ).points
             
             # Tag with query source
             for hit in results:
