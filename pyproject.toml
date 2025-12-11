@@ -13,6 +13,8 @@ dependencies = [
     "langchain-core",
     "langchain-community",
     "langchain-experimental",
+    "beautifulsoup4",
+    "qdrant-client",
     # "faiss-cpu",
     # "chromadb",
 ]

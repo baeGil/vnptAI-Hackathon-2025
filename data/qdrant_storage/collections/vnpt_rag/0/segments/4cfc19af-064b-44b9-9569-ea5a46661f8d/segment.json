@@ -1,0 +1,1 @@
+{"initial_version":808,"version":808,"config":{"vector_data":{"":{"size":1024,"distance":"Cosine","storage_type":"Mmap","index":{"type":"hnsw","options":{"m":32,"ef_construct":200,"full_scan_threshold":20000,"max_indexing_threads":0,"on_disk":false}},"quantization_config":null}},"payload_storage_type":{"type":"mmap"}}}

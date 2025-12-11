@@ -24,15 +24,16 @@ def router_node(state: AgentState) -> AgentState:
    - Quy tắc ưu tiên: Nếu đáp án chứa nội dung từ chối → gán TOXIC ngay lập tức.
 2. MATH
    - Bài toán có dấu hiệu cần THỰC HIỆN TÍNH TOÁN, SUY LUẬN, LẬP TRÌNH hoặc THAO TÁC LOGIC.
+   - Các bài toán có dấu hiệu tính phương trình đường thẳng, mặt phẳng, tính toán hình học, đại số, giải tích, hệ phương trình, ...
    - Có thể giải bằng Python hoặc bằng thao tác tính toán tuần tự.
    - Câu trả lời KHÔNG THỂ có được chỉ bằng việc nhớ định nghĩa.
    - **TIÊU CHÍ BẮT BUỘC ĐỂ LÀ MATH:**
-        (a) Phải có phép tính cần thực hiện (nhân, chia, cộng, trừ, đếm, liệt kê, mô phỏng, tính toán, ước lượng, đạo hàm, vi phân, tích phân, xác suất, tổ hợp, thống kê, ...) để tìm kết quả.
-        (b) Người giải phải xử lý thông tin từ đề, không phải trích từ kiến thức có sẵn.
+        (a) Phải có phép tính cần thực hiện (đếm, liệt kê, mô phỏng, tính toán, ước lượng, xấp xỉ, đạo hàm, vi phân, tích phân, xác suất, tổ hợp, thống kê, ...) để tìm kết quả.
 3. READING
-   - Câu hỏi cung cấp một đoạn văn hoặc một đoạn dữ liệu rõ ràng (ví dụ: "Đoạn thông tin:", "Đoạn văn:", "Cho đoạn văn sau:", "Cho đoạn thông tin:",...)
+   - Câu hỏi cung cấp một đoạn văn hoặc một đoạn dữ liệu rõ ràng để người dùng đọc (ví dụ: "Đoạn thông tin:", "Đoạn văn:", "Cho đoạn văn sau:", "Cho đoạn thông tin:",...)
    - Câu trả lời phải dựa trực tiếp vào nội dung đoạn văn đó.
-   - Nếu không có đoạn văn → không phải READING.
+   - Bắt buộc phải có câu hỏi ở cuối cùng, ngay sau khi đoạn văn được cung cấp.
+   - Bắt buộc phải có đoạn văn dài/đoạn dữ liệu dài để đọc và lấy thông tin, nếu không có đoạn văn thì không phải READING.
 4. RAG
    - Câu hỏi yêu cầu kiến thức bên ngoài hoặc khái niệm lý thuyết.
    - Bao gồm: kiến thức tổng hợp, lịch sử, địa lý, văn hóa, chính trị, sinh học, công thức, quy tắc, định nghĩa, luật, dữ kiện thế giới,...
