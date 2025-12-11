@@ -70,3 +70,6 @@ data/*_transformed.csv
 # some local files
 idea.md
 /figures
+/data/data_source
+/data/data_source_thuvien
+/data/processed
