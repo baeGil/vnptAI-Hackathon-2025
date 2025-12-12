@@ -55,9 +55,11 @@ class VNPTClient:
             'messages': [{"role": "user", "content": prompt}],
             'max_completion_tokens': 20,
             'temperature': 0.0,
-            'top_p': 1.0,
+            'top_p': 0.95,
             'top_k': 1,
             'n': 1,
+            'seed': 42,
+            'response_format': {'type': 'json_object'},
             'stream': False
         }
         try:
@@ -77,13 +79,15 @@ class VNPTClient:
         payload = {
             'model': 'vnptai_hackathon_large',
             'messages': [
-                {"role": "system", "content": "Bạn là chuyên gia lập trình Python. Luôn trả về code trong markdown code block."},
+                {"role": "system", "content": "Bạn là chuyên gia lập trình code Python. Luôn trả về code trong markdown code block."},
                 {"role": "user", "content": prompt}
             ],
             'max_completion_tokens': 2048,
-            'temperature': 0.2,
+            'temperature': 0.0,
             'top_p': 0.95,
-            'frequency_penalty': 0.1,
+            'top_k': 50,
+            'frequency_penalty': 0.0,
+            "presence_penalty": 0.0,
             'n': 1,
             'seed': 42,
             'stream': False
@@ -100,24 +104,26 @@ class VNPTClient:
 
     # MATH ANSWER SELECTION (vnpt_hackathon_small)
     def select_math_answer(self, prompt: str) -> str:
-        """Chọn đáp án cuối cùng cho bài toán sử dụng vnpt_hackathon_small."""
-        url = f"{self.base_url}/vnptai-hackathon-small"
+        """Chọn đáp án cuối cùng cho bài toán sử dụng vnpt_hackathon_large."""
+        url = f"{self.base_url}/vnptai-hackathon-large"
         payload = {
-            'model': 'vnptai_hackathon_small',
+            'model': 'vnptai_hackathon_large',
             'messages': [
                 {"role": "system", "content": "Bạn là trợ lý chọn đáp án. Dựa vào kết quả tính toán, hãy chọn đáp án đúng nhất."},
                 {"role": "user", "content": prompt}
             ],
             'max_completion_tokens': 10,
             'temperature': 0.0,
-            'top_p': 1.0,
-            'top_k': 1,
+            'top_p': 0.95,
+            'top_k': 40,
+            'presence_penalty': 0.0,
+            'frequency_penalty': 0.0,
             'n': 1,
-            'seed': 42,
+            'seed': 100,
             'stream': False
         }
         try:
-            response = requests.post(url, headers=self.small_headers, json=payload, timeout=30)
+            response = requests.post(url, headers=self.large_headers, json=payload, timeout=30)
             self._check_rate_limit(response, "select_math_answer")
             return response.json()['choices'][0]['message']['content']
         except RateLimitException:
@@ -137,9 +143,11 @@ class VNPTClient:
                 {"role": "user", "content": prompt}
             ],
             'max_completion_tokens': 10,
-            'temperature': 0.3,
-            'top_p': 0.9,
-            'presence_penalty': 0.1,
+            'temperature': 0.0,
+            'top_p': 0.85,
+            'top_k': 30,
+            'presence_penalty': 0.0,
+            'frequency_penalty': 0.0,
             'n': 1,
             'seed': 42,
             'stream': False
@@ -165,9 +173,11 @@ class VNPTClient:
                 {"role": "user", "content": prompt}
             ],
             'max_completion_tokens': 10,
-            'temperature': 0.1,
-            'top_p': 0.95,
-            'top_k': 64,
+            'temperature': 0.0,
+            'top_p': 0.85,
+            'top_k': 30,
+            'presence_penalty': 0.0,
+            'frequency_penalty': 0.0,
             'n': 1,
             'seed': 42,
             'stream': False
