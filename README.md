@@ -48,7 +48,7 @@ project/
 │   └── embedder.py               # Vector embedding
 │
 ├── data/                         # Data storage
-│   ├── qdrant_storage/           # Vector DB (3.6GB)
+│   ├── qdrant_storage/           # Vector DB (3.6GB), ignore this folder
 │   └── val.json, test.json       # Input data
 │
 ├── output/                       # Results
