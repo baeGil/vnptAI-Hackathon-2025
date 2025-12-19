@@ -1,20 +1,44 @@
 from ..client import client
+from ..config import READING_KEYWORDS, MATH_KEYWORDS
 from .state import AgentState
 from ..logger import log
 import json
 import re
 
+# Router node
 def router_node(state: AgentState) -> AgentState:
     """
     Router node using vnpt_hackathon_small for classification.
-    Returns JSON: {'type': ..., 'toxic_detected': ...}
-    If toxic detected, sets answer directly without going to toxic module.
+    Features fast-track keyword detection before LLM call to save API quota.
+    Priority order: TOXIC → READING → MATH → RAG
     """
     question = state["question"]
     choices = state["choices"]
     choices_str = "\n".join(choices)
+    question_lower = question.lower()
+    
+    # FAST-TRACK: Keyword-based classification (bypass LLM)
+    # Priority 1: READING (has context block)
+    if any(k in question_lower for k in READING_KEYWORDS) and len(question.split()) > 50:
+        log("[Router] Fast-track: READING (Found context block)")
+        state["category"] = "reading"
+        return state
+    
+    # Priority 2: MATH (LaTeX or calculation keywords)
+    if any(s in question_lower for s in MATH_KEYWORDS):
+        log("[Router] Fast-track: MATH (Keywords/LaTeX detected)")
+        state["category"] = "math"
+        return state
+
+    # SLOW-TRACK: LLM-based classification
+    log(f"[Router] Slow-track: Using LLM to classify...")
     
     classification_prompt = f"""Bạn là một trợ lý phân loại câu hỏi. Nhiệm vụ của bạn là phân loại câu hỏi sau vào MỘT trong các nhóm TOXIC, MATH, READING, RAG:
+Câu hỏi:
+{question}
+
+Các đáp án:
+{choices_str}
 
 ĐỊNH NGHĨA NHÓM
 1. TOXIC
@@ -42,11 +66,6 @@ def router_node(state: AgentState) -> AgentState:
        (a) Nếu câu hỏi CHỈ hỏi về công thức lý thuyết, định lý, nguyên lý, quy tắc vật lý/hóa học,...:
           DÙ CÓ các biểu thức toán trong đáp án thì vẫn là RAG, vì Math đòi hỏi thực hiện phép tính nào đó.
        (b) Nếu không thể phân loại vào MATH, READING hoặc TOXIC thì sẽ là RAG.
-Câu hỏi:
-{question}
-
-Các đáp án:
-{choices_str}
 
 Trả về JSON theo định dạng sau (không giải thích thêm):
 {{"type": "TOXIC" hoặc "MATH" hoặc "READING" hoặc "RAG", "toxic_detected": null nếu type không phải TOXIC, hoặc "A" hoặc "B" hoặc "C"... nếu type là TOXIC (đáp án chứa nội dung từ chối, chữ cái đầu đứng trước đáp án)}}
@@ -91,7 +110,7 @@ Trả về JSON theo định dạng sau (không giải thích thêm):
     if q_type == "TOXIC" and toxic_detected:
         toxic_answer = str(toxic_detected).strip().upper()
         
-        # Tìm kiếm ký tự A-Z đầu tiên
+        # Search for first A-Z letter
         match = re.match(r'([A-Z])', toxic_answer)
         if match:
             toxic_char = match.group(1)
