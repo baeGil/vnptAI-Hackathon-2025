@@ -46,6 +46,7 @@ data/*_transformed.csv
 idea.md
 /figures
 /data/dethitracnghiem
+/data/qdrant_storage
 /data/tvpl
 /data/vbpl
 /data/wiki
