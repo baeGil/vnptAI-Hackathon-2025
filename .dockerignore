@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+.env
+
+# Logs
+output/*.log
+output/*.jsonl
+output/*.csv
+*.log
+
+# Git
+.git/
+.gitignore
+
+# Project specific
+data/qdrant_db/
+STOP_AUTO
+.dockerignore
+docs/
+project/
+*.pdf
+scripts/
+!inference.sh
+!pyproject.toml
+!requirements.txt

@@ -1,19 +1,17 @@
 # BASE IMAGE
-# Using CUDA 12.2 as required. 
-# Note: The base image nvidia/cuda:12.2.0-devel-ubuntu20.04 comes with Python 3.8 default.
-# We need to install Python 3.11.
-
-FROM nvidia/cuda:12.2.0-devel-ubuntu20.04
+# Using Ubuntu 22.04 for better Python 3.11 support while maintaining CUDA 12.2
+FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
 
 # SYSTEM DEPENDENCIES
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
-# Install software-properties-common to add deadsnakes PPA for Python 3.11
+# Install system dependencies and Python 3.11 from deadsnakes PPA
 RUN apt-get update && apt-get install -y \
     software-properties-common \
     curl \
     git \
+    wget \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y \
     python3.11 \
@@ -21,7 +19,10 @@ RUN apt-get update && apt-get install -y \
     python3.11-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
+# Copy Qdrant binary FROM official Docker image (ensures data format compatibility)
+COPY --from=qdrant/qdrant:latest /qdrant/qdrant /usr/local/bin/qdrant
+
+# Install uv for fast dependency management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 # PROJECT SETUP
@@ -29,16 +30,14 @@ WORKDIR /code
 COPY . /code
 
 # ENV SETUP
-# Create a virtual environment using uv directly
 RUN uv venv .venv --python 3.11
-
-# Activate venv for subsequent commands
 ENV PATH="/code/.venv/bin:$PATH"
 
-# Install dependencies using uv
-RUN uv pip install -r pyproject.toml
-# Or use uv sync if using the lockfile workflow, but for simplicity with pyproject.toml:
-# RUN uv pip install .
+# Install dependencies using requirements.txt (as requested by BTC)
+RUN uv pip install -r requirements.txt
 
 # EXECUTION
+# Ensure scripts are executable
+RUN chmod +x inference.sh
+
 CMD ["bash", "inference.sh"]
