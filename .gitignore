@@ -1,37 +1,12 @@
 # Environment
 .env
 .env.local
-.env.*.local
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
 .venv/
-venv/
-ENV/
 env/
-
-# IDE
 .vscode/
 .idea/
 *.swp
@@ -67,9 +42,21 @@ api-keys*.json
 data/*_transformed.json
 data/*_transformed.csv
 
-# some local files
+# data files
 idea.md
 /figures
-/data/data_source
-/data/data_source_thuvien
-/data/processed
+/data/dethitracnghiem
+/data/tvpl
+/data/vbpl
+/data/wiki
+/data/ViWiki2025
+
+# answer submission files
+/data/crawler_status.json
+/data/test_answer.csv
+/data/test_answer.json
+/data/val_category.csv
+
+# local evaluate files
+evaluate_test.py
+evaluate.py
