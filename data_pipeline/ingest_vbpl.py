@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Optimized data processing pipeline for Vietnamese legal documents.
 - Deep text cleaning
@@ -12,12 +11,13 @@ from glob import glob
 from typing import List, Dict
 import unicodedata
 
-DATA_SOURCE_DIR = "data/data_source"
-PROCESSED_DIR = "data/processed"
+DATA_SOURCE_DIR = "data/vbpl/raw"
+PROCESSED_DIR = "data/vbpl/processed"
 
-# ============================================
-# TEXT CLEANING
-# ============================================
+# Chunking parameters for vnpt embedding (8k context)
+MAX_CHUNK_SIZE = 5000  
+MIN_CHUNK_SIZE = 1000 
+CHUNK_OVERLAP = 300    
 
 def clean_text(text: str) -> str:
     """Deep clean Vietnamese legal text."""
@@ -68,10 +68,6 @@ def extract_doc_metadata(doc: dict) -> dict:
         "co_quan": co_quan,
         "hieu_luc": hieu_luc
     }
-
-# ============================================
-# CHUNKING STRATEGIES
-# ============================================
 
 def chunk_by_article(content: str, doc_title: str, doc_meta: dict) -> List[Dict]:
     """
@@ -145,12 +141,11 @@ def chunk_by_article(content: str, doc_title: str, doc_meta: dict) -> List[Dict]
     return chunks
 
 def chunk_by_semantic_blocks(content: str, doc_title: str, 
-                             target_size: int = 1500, 
-                             min_size: int = 500,
-                             overlap: int = 200) -> List[Dict]:
+                             target_size: int = MAX_CHUNK_SIZE, 
+                             min_size: int = MIN_CHUNK_SIZE,
+                             overlap: int = CHUNK_OVERLAP) -> List[Dict]:
     """
     Fallback: Chunk by semantic blocks (paragraphs) with overlap.
-    Target ~1500 chars per chunk for optimal retrieval.
     """
     chunks = []
     content = clean_text(content)
@@ -183,7 +178,7 @@ def chunk_by_semantic_blocks(content: str, doc_title: str,
             })
             chunk_idx += 1
             
-            # Overlap: keep last ~200 chars
+            # Overlap: keep last chars
             overlap_text = current_chunk[-overlap:] if len(current_chunk) > overlap else ""
             current_chunk = f"[{doc_title}]\n\n{overlap_text}\n\n{para}\n\n"
         else:
@@ -199,10 +194,6 @@ def chunk_by_semantic_blocks(content: str, doc_title: str,
         })
     
     return chunks
-
-# ============================================
-# MAIN PROCESSING
-# ============================================
 
 def process_document(doc_path: str) -> List[Dict]:
     """Process a single document into optimized chunks."""
@@ -269,7 +260,7 @@ def process_all_documents():
             if chunks:
                 print(f"  {os.path.basename(doc_path)}: {len(chunks)} chunks")
         except Exception as e:
-            print(f"  Error: {doc_path}: {e}")
+            print(f"Error: {doc_path}: {e}")
     
     # Save
     output_path = f"{PROCESSED_DIR}/chunks.json"

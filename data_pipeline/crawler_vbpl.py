@@ -2,6 +2,14 @@
 """
 Crawler for Vietnamese Legal Documents from vbpl.vn
 Optimized for high-priority docs: Hiến pháp, Bộ luật, Luật
+
+Usage: 
+    # Run default (Crawl Hiến pháp, Bộ luật, Luật)
+    - uv run data_pipeline/crawler_vbpl.py
+    # Crawl specific type
+    - uv run data_pipeline/crawler_vbpl.py --types hien_phap bo_luat
+    # Limit number (test)
+    - uv run data_pipeline/crawler_vbpl.py --limit 10
 """
 import os
 import json
@@ -23,8 +31,8 @@ DOC_TYPES = {
 HIGH_PRIORITY_TYPES = ["hien_phap", "bo_luat", "luat"]
 
 BASE_URL = "https://vbpl.vn"
-OUTPUT_DIR = "data/data_source"
-CHECKPOINT_FILE = "data/data_source/checkpoint.json"
+OUTPUT_DIR = "data/vbpl"
+CHECKPOINT_FILE = "data/vbpl/checkpoint.json"
 REQUEST_DELAY = 2
 
 def get_session():
@@ -167,8 +175,9 @@ def get_document_content(session, doc_url, doc_id):
         return None
 
 def save_document(doc, doc_type):
-    os.makedirs(f"{OUTPUT_DIR}/{doc_type}", exist_ok=True)
-    filepath = f"{OUTPUT_DIR}/{doc_type}/{doc['id']}.json"
+    target_dir = f"{OUTPUT_DIR}/raw/{doc_type}"
+    os.makedirs(target_dir, exist_ok=True)
+    filepath = f"{target_dir}/{doc['id']}.json"
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(doc, f, ensure_ascii=False, indent=2)
     return filepath
@@ -186,6 +195,8 @@ def crawl_document_type(session, doc_type, doc_type_id, checkpoint, limit=None):
         page = checkpoint.get("last_page", 1)
         print(f"Resuming from page {page}")
     
+    import concurrent.futures
+
     while True:
         print(f"\n[Page {page}]")
         documents, has_next = get_document_list(session, doc_type_id, page)
@@ -196,39 +207,55 @@ def crawl_document_type(session, doc_type, doc_type_id, checkpoint, limit=None):
         
         print(f"Found {len(documents)} documents")
         
+        # Prepare tasks
+        tasks = []
         for doc_info in documents:
             doc_id = doc_info["id"]
             title = doc_info["title"]
             
             # Skip English documents
             if "tiếng anh" in title.lower() or "english" in title.lower():
-                print(f"  [Skip English] {title[:40]}...")
+                print(f"Skip English: {title[:40]}...")
                 continue
             
             if doc_id in checkpoint["crawled_ids"]:
                 continue
             
-            print(f"  {title[:60]}...")
+            tasks.append(doc_info)
             
-            doc = get_document_content(session, doc_info["url"], doc_id)
+        if not tasks:
+            print("All documents on page already crawled or skipped")
+        else:
+            print(f"Processing {len(tasks)} documents with {args.workers} threads...")
             
-            if doc and doc.get("content") and len(doc["content"]) > 50:
-                filepath = save_document(doc, doc_type)
-                print(f"    ✓ Saved ({doc['content_length']} chars)")
-                total_crawled += 1
+            with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
+                future_to_doc = {
+                    executor.submit(get_document_content, session, doc["url"], doc["id"]): doc 
+                    for doc in tasks
+                }
                 
-                checkpoint["crawled_ids"].append(doc_id)
-                checkpoint["last_type"] = doc_type
-                checkpoint["last_page"] = page
-                save_checkpoint(checkpoint)
-                
-                if limit and total_crawled >= limit:
-                    print(f"\nReached limit: {limit}")
-                    return total_crawled
-            else:
-                print(f"    ✗ Failed or empty content")
-            
-            time.sleep(REQUEST_DELAY)
+                for future in concurrent.futures.as_completed(future_to_doc):
+                    doc_info = future_to_doc[future]
+                    try:
+                        doc = future.result()
+                        if doc and doc.get("content") and len(doc["content"]) > 50:
+                            save_document(doc, doc_type)
+                            print(f"Saved {doc_info['id']} ({doc['content_length']} chars)")
+                            total_crawled += 1
+                            
+                            checkpoint["crawled_ids"].append(doc_info["id"])
+                            checkpoint["last_type"] = doc_type
+                            checkpoint["last_page"] = page
+                            # Save checkpoint less frequently to avoid lock contention if we were stricter, but here it's fine or we can move it out.
+                            save_checkpoint(checkpoint)
+                            
+                            if limit and total_crawled >= limit:
+                                print(f"\nReached limit: {limit}")
+                                return total_crawled
+                        else:
+                            print(f"Failed/Empty {doc_info['id']}")
+                    except Exception as exc:
+                        print(f"Exception {doc_info['id']}: {exc}")
         
         if not has_next:
             print("No more pages")
@@ -273,6 +300,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--types', nargs='+', default=HIGH_PRIORITY_TYPES)
     parser.add_argument('--limit', type=int, default=None)
+    parser.add_argument('--workers', type=int, default=5, help='Number of parallel workers')
     parser.add_argument('--test', action='store_true')
     
     args = parser.parse_args()
