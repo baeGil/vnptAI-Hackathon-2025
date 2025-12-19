@@ -1,4 +1,5 @@
 from ....client import client
+from ....answer import extract_answer, extract_and_normalize
 from ...state import AgentState
 from ....logger import log
 import re
@@ -63,11 +64,11 @@ CHỈ TRẢ LỜI BẰNG CHỮ CÁI ĐỨNG TRƯỚC CÂU TRẢ LỜI ĐÚNG, KH
     
     log(f"[Reading] Processing...")
     response = client.generate_reading_answer(prompt)
-    match = re.match(r'([A-Z])', response)
-    if match:
-        state["answer"] = match.group(1)
-    else:
-        state["answer"] = "A"
+    
+    # Use advanced answer extraction
+    num_choices = len(choices)
+    answer = extract_and_normalize(response, num_choices, state.get("qid"), default="A")
+    state["answer"] = answer
     
     state["reasoning"] = f"Reading comprehension: {response[:50]}"
     log(f"[Reading] Answer: {state['answer']}")

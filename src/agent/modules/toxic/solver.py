@@ -2,6 +2,7 @@ from ...state import AgentState
 from ....logger import log
 import re
 
+# Comprehensive refusal patterns (from vnpt-ai-sample)
 TOXIC_KEYWORDS = [
     "tôi không thể trả lời",
     "tôi không biết",
@@ -12,6 +13,15 @@ TOXIC_KEYWORDS = [
     "từ chối trả lời",
     "không thể đưa ra",
     "không cung cấp",
+    # Additional patterns from vnpt-ai-sample
+    "nằm ngoài phạm vi",
+    "không thuộc phạm vi",
+    "tôi là mô hình ngôn ngữ",
+    "hành vi vi phạm",
+    "trái pháp luật",
+    "nằm ngoài tầm hiểu biết",
+    "bất hợp pháp",
+    "không hỗ trợ",
 ]
 
 def toxic_checker_node(state: AgentState) -> AgentState:
