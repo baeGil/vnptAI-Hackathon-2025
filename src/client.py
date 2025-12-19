@@ -7,8 +7,8 @@ class RateLimitException(Exception):
 
 class VNPTClient:
     """
-    VNPT AI API Client với các method riêng cho từng tác vụ.
-    Tự động phát hiện Rate Limit (429/401) và raise RateLimitException.
+    VNPT AI API Client with methods for each task.
+    Automatically detects rate limit (429/401) and raises RateLimitException.
     """
     
     def __init__(self):
@@ -41,21 +41,42 @@ class VNPTClient:
     def _check_rate_limit(self, response: requests.Response, method_name: str):
         """Check for rate limit errors and raise RateLimitException if detected."""
         if response.status_code in [429, 401]:
-            error_msg = f"[{method_name}] Rate Limit/Quota exceeded: HTTP {response.status_code}"
+            try:
+                detail = response.text
+            except:
+                detail = "No details"
+            error_msg = f"[{method_name}] Rate Limit/Quota exceeded: HTTP {response.status_code} - {detail}"
             print(error_msg)
+            
+            # If 401, it might be fatal (Invalid Key), unless API uses 401 for Quota.
+            # We raise the same exception but with more detail so user sees it in logs.
             raise RateLimitException(error_msg)
         response.raise_for_status()
 
-    # ROUTER CLASSIFICATION (vnpt_hackathon_small)
+    def _parse_response(self, response: requests.Response, method_name: str) -> str:
+        """Safely parse API response content and log details on failure."""
+        try:
+            data = response.json()
+            return data['choices'][0]['message']['content']
+        except (KeyError, IndexError, TypeError) as e:
+            # Log the actual response body to debug 'KeyError: choices'
+            print(f"[{method_name}] Invalid Response format: {e} | Body: {response.text[:500]}")
+            return ""
+        except Exception as e:
+            print(f"[{method_name}] Parse Error: {e}")
+            return ""
+
+# 6 Different model configs for 6 specific tasks
+
+    # Task1: ROUTER CLASSIFICATION (vnpt_hackathon_small)
     def classify_router(self, prompt: str) -> str:
-        """Phân loại câu hỏi sử dụng vnpt_hackathon_small."""
+        """Classify question using vnpt_hackathon_small."""
         url = f"{self.base_url}/vnptai-hackathon-small"
         payload = {
             'model': 'vnptai_hackathon_small',
             'messages': [{"role": "user", "content": prompt}],
             'max_completion_tokens': 20,
             'temperature': 0.0,
-            'top_p': 0.95,
             'top_k': 1,
             'n': 1,
             'seed': 42,
@@ -63,18 +84,18 @@ class VNPTClient:
             'stream': False
         }
         try:
-            response = requests.post(url, headers=self.small_headers, json=payload, timeout=30)
+            response = requests.post(url, headers=self.small_headers, json=payload, timeout=120)
             self._check_rate_limit(response, "classify_router")
-            return response.json()['choices'][0]['message']['content']
+            return self._parse_response(response, "classify_router")
         except RateLimitException:
             raise  # Re-raise to be caught by predict.py
         except Exception as e:
             print(f"[classify_router] Error: {e}")
             return ""
 
-    # MATH CODE GENERATION (vnpt_hackathon_large)
+    # Task 2: MATH CODE GENERATION (vnpt_hackathon_large)
     def generate_math_code(self, prompt: str) -> str:
-        """Sinh code Python sử dụng vnpt_hackathon_large."""
+        """Generate Python code using vnpt_hackathon_large."""
         url = f"{self.base_url}/vnptai-hackathon-large"
         payload = {
             'model': 'vnptai_hackathon_large',
@@ -82,29 +103,27 @@ class VNPTClient:
                 {"role": "system", "content": "Bạn là chuyên gia lập trình code Python. Luôn trả về code trong markdown code block."},
                 {"role": "user", "content": prompt}
             ],
-            'max_completion_tokens': 2048,
+            'max_completion_tokens': 4096,
             'temperature': 0.0,
-            'top_p': 0.95,
-            'top_k': 50,
-            'frequency_penalty': 0.0,
-            "presence_penalty": 0.0,
+            'top_p': 0.9,
+            'top_k': 25,
             'n': 1,
             'seed': 42,
             'stream': False
         }
         try:
-            response = requests.post(url, headers=self.large_headers, json=payload, timeout=60)
+            response = requests.post(url, headers=self.large_headers, json=payload, timeout=120)
             self._check_rate_limit(response, "generate_math_code")
-            return response.json()['choices'][0]['message']['content']
+            return self._parse_response(response, "generate_math_code")
         except RateLimitException:
             raise
         except Exception as e:
             print(f"[generate_math_code] Error: {e}")
             return ""
 
-    # MATH ANSWER SELECTION (vnpt_hackathon_small)
+    # Task 3: MATH ANSWER SELECTION (vnpt_hackathon_large)
     def select_math_answer(self, prompt: str) -> str:
-        """Chọn đáp án cuối cùng cho bài toán sử dụng vnpt_hackathon_large."""
+        """Select final answer for math problem using vnpt_hackathon_large."""
         url = f"{self.base_url}/vnptai-hackathon-large"
         payload = {
             'model': 'vnptai_hackathon_large',
@@ -115,26 +134,26 @@ class VNPTClient:
             'max_completion_tokens': 10,
             'temperature': 0.0,
             'top_p': 0.95,
-            'top_k': 40,
-            'presence_penalty': 0.0,
-            'frequency_penalty': 0.0,
+            'top_k': 10,
+            # 'presence_penalty': 0.0,
+            # 'frequency_penalty': 0.0,
             'n': 1,
-            'seed': 100,
+            'seed': 42,
             'stream': False
         }
         try:
-            response = requests.post(url, headers=self.large_headers, json=payload, timeout=30)
+            response = requests.post(url, headers=self.large_headers, json=payload, timeout=120)
             self._check_rate_limit(response, "select_math_answer")
-            return response.json()['choices'][0]['message']['content']
+            return self._parse_response(response, "select_math_answer")
         except RateLimitException:
             raise
         except Exception as e:
             print(f"[select_math_answer] Error: {e}")
             return ""
 
-    # RAG GENERATION (vnpt_hackathon_large)
+    # Task 4: RAG GENERATION (vnpt_hackathon_large)
     def generate_rag_answer(self, prompt: str) -> str:
-        """Sinh câu trả lời RAG sử dụng vnpt_hackathon_large."""
+        """Generate RAG answer using vnpt_hackathon_large."""
         url = f"{self.base_url}/vnptai-hackathon-large"
         payload = {
             'model': 'vnptai_hackathon_large',
@@ -144,27 +163,27 @@ class VNPTClient:
             ],
             'max_completion_tokens': 10,
             'temperature': 0.0,
-            'top_p': 0.85,
-            'top_k': 30,
-            'presence_penalty': 0.0,
-            'frequency_penalty': 0.0,
+            'top_p': 1.0,
+            # 'top_k': 30,
+            # 'presence_penalty': 0.0,
+            # 'frequency_penalty': 0.0,
             'n': 1,
             'seed': 42,
             'stream': False
         }
         try:
-            response = requests.post(url, headers=self.large_headers, json=payload, timeout=60)
+            response = requests.post(url, headers=self.large_headers, json=payload, timeout=120)
             self._check_rate_limit(response, "generate_rag_answer")
-            return response.json()['choices'][0]['message']['content']
+            return self._parse_response(response, "generate_rag_answer")
         except RateLimitException:
             raise
         except Exception as e:
             print(f"[generate_rag_answer] Error: {e}")
             return ""
 
-    # READING COMPREHENSION (vnpt_hackathon_large)
+    # Task 5: READING COMPREHENSION (vnpt_hackathon_large)
     def generate_reading_answer(self, prompt: str) -> str:
-        """Đọc hiểu và trả lời sử dụng vnpt_hackathon_large."""
+        """Generate reading answer using vnpt_hackathon_large."""
         url = f"{self.base_url}/vnptai-hackathon-large"
         payload = {
             'model': 'vnptai_hackathon_large',
@@ -174,27 +193,68 @@ class VNPTClient:
             ],
             'max_completion_tokens': 10,
             'temperature': 0.0,
-            'top_p': 0.85,
-            'top_k': 30,
-            'presence_penalty': 0.0,
-            'frequency_penalty': 0.0,
+            'top_p': 1.0,
+            # 'top_k': 30,
+            # 'presence_penalty': 0.0,
+            # 'frequency_penalty': 0.0,
             'n': 1,
             'seed': 42,
             'stream': False
         }
         try:
-            response = requests.post(url, headers=self.large_headers, json=payload, timeout=60)
+            response = requests.post(url, headers=self.large_headers, json=payload, timeout=120)
             self._check_rate_limit(response, "generate_reading_answer")
-            return response.json()['choices'][0]['message']['content']
+            return self._parse_response(response, "generate_reading_answer")
         except RateLimitException:
             raise
         except Exception as e:
             print(f"[generate_reading_answer] Error: {e}")
             return ""
 
-    # EMBEDDING (vnpt_hackathon_embedding)
+    # Task 6: DOCUMENT RERANKING (vnpt_hackathon_small)
+    def rerank_documents(self, query: str, doc_list: str, top_k: int = 3) -> str:
+        """Rerank documents using vnpt_hackathon_small for better precision."""
+        url = f"{self.base_url}/vnptai-hackathon-small"
+        
+        system_prompt = (
+            "Bạn là chuyên gia đánh giá độ liên quan của văn bản. "
+            "Nhiệm vụ: Chọn ra các đoạn văn bản LIÊN QUAN NHẤT với câu hỏi.\n"
+            "Chỉ trả về danh sách các số ID (ví dụ: 0, 3, 5), không giải thích."
+        )
+        
+        user_prompt = (
+            f"Câu hỏi: {query}\n\n"
+            f"Các đoạn văn bản:\n{doc_list}\n"
+            f"Hãy chọn {top_k} đoạn văn bản LIÊN QUAN NHẤT với câu hỏi. "
+            f"Trả về danh sách ID, cách nhau bởi dấu phẩy."
+        )
+        
+        payload = {
+            'model': 'vnptai_hackathon_small',
+            'messages': [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            'max_completion_tokens': 50,
+            'temperature': 0.0,
+            'top_k': 1,
+            'n': 1,
+            'seed': 42,
+            'stream': False
+        }
+        try:
+            response = requests.post(url, headers=self.small_headers, json=payload, timeout=120)
+            self._check_rate_limit(response, "rerank_documents")
+            return self._parse_response(response, "rerank_documents")
+        except RateLimitException:
+            raise
+        except Exception as e:
+            print(f"[rerank_documents] Error: {e}")
+            return ""
+
+    # EMBEDDING model (vnpt_hackathon_embedding)
     def get_embedding(self, text: str) -> list:
-        """Embedding text sử dụng vnptai_hackathon_embedding."""
+        """Embedding text using vnptai_hackathon_embedding."""
         url = "https://api.idg.vnpt.vn/data-service/vnptai-hackathon-embedding"
         payload = {
             'model': 'vnptai_hackathon_embedding',
@@ -202,7 +262,7 @@ class VNPTClient:
             'encoding_format': 'float',
         }
         try:
-            response = requests.post(url, headers=self.embedding_headers, json=payload, timeout=15)
+            response = requests.post(url, headers=self.embedding_headers, json=payload, timeout=60)
             self._check_rate_limit(response, "get_embedding")
             return response.json()['data'][0]['embedding']
         except RateLimitException:
