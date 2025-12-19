@@ -81,7 +81,7 @@ def main():
     # We check for mandatory path first, then fallback for local development
     mandatory_path = "/code/private_test.json"
     
-    if os.path.exists(mandatory_path):
+    if os.path.isfile(mandatory_path):
         input_file = mandatory_path
         print(f"[INFO] Using mandatory input: {input_file}")
     else:
