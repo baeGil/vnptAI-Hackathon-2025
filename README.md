@@ -512,13 +512,16 @@ The project is fully containerized for submission. The image contains:
 docker pull baegil/underdog_submission:latest
 
 # 2. Run inference (mount your private_test.json)
-docker run --rm \
+rm -rf output_btc && mkdir output_btc && docker run --rm \
   -v $(pwd)/test.json:/code/private_test.json \
-  -v $(pwd)/output:/code/output \
+  -v $(pwd)/output_btc:/code/output \
   --env-file .env \
   baegil/underdog_submission:latest
 ```
-> **Note**: When running a new test cycle, all previous output files **must be cleared beforehand**. Failure to clear these files will result in the code skipping previously processed questions and continuing inference only on new, uncompleted entries.
+> **Note**: When running a new test cycle, make sure:
+> - All previous output files **must be cleared beforehand**. 
+> - Create a new test.json file in the root directory, same format as data/test.json or data/val.json.
+> - Already created .env file in the root directory and filled all the required fields.
 
 **Auto Mode Flow**:
 ```
