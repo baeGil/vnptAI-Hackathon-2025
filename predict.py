@@ -8,11 +8,11 @@ from src.utils import load_data, transform_choices, save_transformed_data
 from src.agent.graph import app
 from src.client import RateLimitException
 
-LOG_FILE = "inference_log.jsonl"
+LOG_FILE = "submission_log.jsonl"
 DETAIL_LOG_FILE = "inference_detail.log"
 EMERGENCY_CSV = "submission_emergency.csv"
 TEST_FILE="test.json"
-OUTPUT_FILE="submission_test.csv"
+OUTPUT_FILE="submission.csv"
 
 def load_processed_qids(log_path: str) -> set:
     """Load already processed question IDs from log file."""
@@ -77,19 +77,26 @@ def main():
     parser.add_argument("--auto", action="store_true", help="Auto mode: waits for hourly quota reset on rate limit.")
     args = parser.parse_args()
 
-    # Determine input file path
-    input_file = os.path.join(config.DATA_DIR, TEST_FILE)
+    # Determine input file path - BTC requires /code/private_test.json
+    # We check for mandatory path first, then fallback for local development
+    mandatory_path = "/code/private_test.json"
     
-    # Fallbacks for testing
-    if not os.path.exists(input_file):
-        for fallback in ["public_test.json", "test.json", "private_test.json"]:
-            fallback_path = os.path.join(config.DATA_DIR, fallback)
-            if os.path.exists(fallback_path):
-                input_file = fallback_path
-                break
+    if os.path.exists(mandatory_path):
+        input_file = mandatory_path
+        print(f"[INFO] Using mandatory input: {input_file}")
+    else:
+        input_file = os.path.join(config.DATA_DIR, TEST_FILE)
+        # Fallbacks for testing
+        if not os.path.exists(input_file):
+            for fallback in ["private_test.json", "public_test.json", "test.json"]:
+                fallback_path = os.path.join(config.DATA_DIR, fallback)
+                if os.path.exists(fallback_path):
+                    input_file = fallback_path
+                    break
+        print(f"[INFO] Using fallback input: {input_file}")
     
     if not os.path.exists(input_file):
-        print(f"[ERROR] No input file found in {config.DATA_DIR}")
+        print(f"[ERROR] No input file found. Expected {mandatory_path} or file in {config.DATA_DIR}")
         return 1
     
     output_file = os.path.join(config.OUTPUT_DIR, OUTPUT_FILE)
@@ -161,8 +168,27 @@ def main():
             start_time = time.time()
             
             try:
-                # Invoke Agent
-                final_state = app.invoke(initial_state)
+                # Persistent Retry Logic
+                MAX_RETRIES = 5
+                RETRY_DELAY = 30  # seconds
+                
+                invoke_result = None
+                
+                for attempt in range(MAX_RETRIES + 1):
+                    try:
+                        # Invoke Agent
+                        invoke_result = app.invoke(initial_state)
+                        break  # Success
+                    except RateLimitException as e:
+                        if attempt < MAX_RETRIES:
+                            print(f"\n⚠️ Rate Limit (Attempt {attempt + 1}/{MAX_RETRIES}) - Waiting {RETRY_DELAY}s...")
+                            time.sleep(RETRY_DELAY)
+                            continue
+                        else:
+                            # Propagate after max retries to hit the hourly wait logic
+                            raise e
+
+                final_state = invoke_result
                 
                 # Calculate duration
                 duration = time.time() - start_time
@@ -190,9 +216,9 @@ def main():
                 idx += 1
                 
             except RateLimitException as e:
-                # RATE LIMIT HANDLING
+                # RATE LIMIT HANDLING (After max retries)
                 print(f"\n{'='*50}")
-                print(f"[RATE LIMIT] Quota exceeded at {qid}")
+                print(f"[RATE LIMIT] Quota exceeded at {qid} after {MAX_RETRIES} internal retries.")
                 print(f"{'='*50}")
                 
                 append_detail_log(detail_log, f"RATE LIMIT at {qid}: {e}")
@@ -216,9 +242,10 @@ def main():
                 duration = time.time() - start_time
                 error_msg = str(e)
                 append_detail_log(detail_log, f"ERROR at {qid}: {error_msg}")
-                print(f"❌ Error at {qid}: {error_msg}")
+                print(f"Error at {qid}: {error_msg}")
                 
-                # Log with fallback answer 'C'
+                # Log with fallback answer 'C' but DO NOT save to inference_log.jsonl
+                # This ensures we retry this question next time
                 record = {
                     "qid": qid,
                     "answer": "C",
@@ -226,15 +253,15 @@ def main():
                     "reasoning": error_msg[:200],
                     "time_taken": round(duration, 2)
                 }
-                append_to_log(log_file, record)
+                # append_to_log(log_file, record)  <-- DISABLED per user request
                 current = done + idx + 1
-                print(f"[{current}/{total}] {qid} -> C (error) [{duration:.2f}s]")
+                print(f"[{current}/{total}] {qid} -> C (error - NOT SAVED) [{duration:.2f}s]")
                 
                 # Move to next despite error
                 idx += 1
 
     except KeyboardInterrupt:
-        print("\n\n⚠️ KeyboardInterrupt Detected (Ctrl+C). Stopping gracefully...")
+        print("\n\nKeyboardInterrupt Detected (Ctrl+C). Stopping gracefully...")
         append_detail_log(detail_log, "Stopped by KeyboardInterrupt.")
     
     # CONSOLIDATE RESULTS
