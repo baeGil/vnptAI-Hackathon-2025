@@ -512,9 +512,17 @@ The project is fully containerized for submission. The image contains:
 docker pull baegil/underdog_submission:latest
 
 # 2. Run inference (mount your private_test.json)
+#### On Macos:
 rm -rf output_btc && mkdir output_btc && docker run --rm \
   -v $(pwd)/test.json:/code/private_test.json \
   -v $(pwd)/output_btc:/code/output \
+  --env-file .env \
+  baegil/underdog_submission:latest
+
+#### On Windows:
+export MSYS_NO_PATHCONV=1 && rm -rf output_btc && mkdir -p output_btc && docker run --rm \
+  -v "/$(pwd)/test.json:/code/private_test.json" \
+  -v "/$(pwd)/output_btc:/code/output" \
   --env-file .env \
   baegil/underdog_submission:latest
 ```
