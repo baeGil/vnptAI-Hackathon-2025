@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from src.config import config
 
+# Log detail inference
 LOG_FILE = os.path.join(config.OUTPUT_DIR, "inference_detail.log")
 
 def log(message: str):
